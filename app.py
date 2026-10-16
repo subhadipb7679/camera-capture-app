@@ -6,7 +6,7 @@ import uuid
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, File, Header, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
@@ -30,6 +30,10 @@ def home():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/gallery")
+def gallery():
+    return FileResponse(os.path.join(APP_DIR, "static", "gallery.html"))
 
 def require_admin(provided: str | None):
     if not ADMIN_KEY:
@@ -114,17 +118,24 @@ async def upload_capture(
     capture_id = rel_key.rsplit("/", 1)[-1].removesuffix(".jpg")
     return {"status": "uploaded", "capture_id": capture_id, "path": rel_key}
 
+def admin_key(
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+    key: str | None = Query(default=None),
+) -> str | None:
+    return x_admin_key or key
+
 @app.get("/api/admin/captures")
-def list_captures(x_admin_key: str | None = Header(default=None, alias="X-Admin-Key")):
-    require_admin(x_admin_key)
+def list_captures(admin: str | None = Header(default=None, alias="X-Admin-Key"), key: str | None = Query(default=None)):
+    require_admin(admin_key(admin, key))
     items = sorted(iter_capture_files(), key=lambda x: x["modified_utc"], reverse=True)
     return {"captures": items, "storage_dir": CAPTURE_DIR}
 
 @app.get("/api/admin/captures/{capture_id}/download")
 def download_capture(
     capture_id: str,
-    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
+    admin: str | None = Header(default=None, alias="X-Admin-Key"),
+    key: str | None = Query(default=None),
 ):
-    require_admin(x_admin_key)
+    require_admin(admin_key(admin, key))
     path = resolve_capture_path(capture_id)
     return FileResponse(path, media_type="image/jpeg", filename=f"{capture_id}.jpg")
