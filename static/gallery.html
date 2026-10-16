@@ -10,55 +10,34 @@ body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);padding:20
 .wrap{max-width:960px;margin:0 auto}
 h1{font-size:1.35rem;margin:0 0 4px}
 .sub{color:var(--muted);margin:0 0 18px;font-size:.92rem}
-.panel{background:var(--card);border:1px solid #2e3a4d;border-radius:14px;padding:16px;margin-bottom:18px}
-.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-input[type=password]{flex:1;min-width:200px;padding:10px 12px;border-radius:10px;border:1px solid #445066;background:#0f1217;color:var(--text)}
-button{padding:10px 14px;border:0;border-radius:10px;background:#7c9cff;color:#0b1020;font-weight:700;cursor:pointer}
-#msg{color:var(--muted);margin-top:10px;min-height:1.2em}
+button{padding:10px 14px;border:0;border-radius:10px;background:#7c9cff;color:#0b1020;font-weight:700;cursor:pointer;margin-bottom:14px}
+#msg{color:var(--muted);margin-bottom:14px;min-height:1.2em}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
 .card{background:var(--card);border:1px solid #2e3a4d;border-radius:12px;overflow:hidden}
 .card img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#080a0d}
-.meta{padding:8px 10px;font-size:.75rem;color:var(--muted);word-break:break-all}
+.meta{padding:8px 10px;font-size:.75rem;color:var(--muted)}
 .meta a{color:#9eb4ff}
 </style>
 </head>
 <body>
 <div class="wrap">
-<h1>Capture gallery</h1>
-<p class="sub">Same site — enter your admin key to view images on this server.</p>
-<div class="panel">
-<div class="row">
-<input id="key" type="password" placeholder="Admin key" autocomplete="off">
-<button type="button" id="loadBtn">Load images</button>
+<h1>Gallery</h1>
+<p class="sub">All images stored on this server.</p>
 <button type="button" id="refreshBtn">Refresh</button>
-</div>
 <p id="msg"></p>
-</div>
 <div id="grid" class="grid"></div>
 </div>
 <script>
-const keyEl=document.querySelector("#key");
-const loadBtn=document.querySelector("#loadBtn");
 const refreshBtn=document.querySelector("#refreshBtn");
 const grid=document.querySelector("#grid");
 const msg=document.querySelector("#msg");
-const STORE="quotePopAdminKey";
-
 function say(t){msg.textContent=t}
-
-function headers(){
-  const k=keyEl.value.trim();
-  if(!k)throw new Error("Enter admin key.");
-  return {"X-Admin-Key":k};
-}
 
 async function loadGallery(){
   grid.innerHTML="";
   say("Loading…");
   try{
-    const h=headers();
-    sessionStorage.setItem(STORE,keyEl.value.trim());
-    const listRes=await fetch("/api/admin/captures",{headers:h,credentials:"same-origin"});
+    const listRes=await fetch("/api/captures",{credentials:"same-origin"});
     const list=await listRes.json().catch(()=>({}));
     if(!listRes.ok)throw new Error(list.detail||"Could not load list.");
     const items=list.captures||[];
@@ -69,33 +48,20 @@ async function loadGallery(){
       card.className="card";
       const img=document.createElement("img");
       img.alt=item.capture_id;
-      const dl=await fetch(`/api/admin/captures/${item.capture_id}/download`,{headers:h,credentials:"same-origin"});
-      if(!dl.ok)continue;
-      img.src=URL.createObjectURL(await dl.blob());
+      img.loading="lazy";
+      img.src=`/api/captures/${item.capture_id}/image`;
       const meta=document.createElement("div");
       meta.className="meta";
       meta.innerHTML=`<div>${item.modified_utc.replace("T"," ").replace("+00:00"," UTC")}</div>
-        <div><a href="/api/admin/captures/${item.capture_id}/download" download="${item.capture_id}.jpg" id="dl-${item.capture_id}">Download</a></div>`;
+        <div><a href="/api/captures/${item.capture_id}/download" download="${item.capture_id}.jpg">Download</a></div>`;
       card.append(img,meta);
       grid.append(card);
-      const link=meta.querySelector("a");
-      link.addEventListener("click",async(e)=>{
-        e.preventDefault();
-        const r=await fetch(link.getAttribute("href"),{headers:h});
-        const b=await r.blob();
-        const a=document.createElement("a");
-        a.href=URL.createObjectURL(b);
-        a.download=`${item.capture_id}.jpg`;
-        a.click();
-      });
     }
   }catch(e){say(e.message||"Failed.");}
 }
 
-loadBtn.addEventListener("click",loadGallery);
 refreshBtn.addEventListener("click",loadGallery);
-const saved=sessionStorage.getItem(STORE);
-if(saved){keyEl.value=saved;loadGallery();}
+loadGallery();
 </script>
 </body>
 </html>
