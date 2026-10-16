@@ -6,7 +6,7 @@ cd "$ROOT"
 export PATH="${HOME}/.local/bin:${PATH}"
 
 : "${RENDER_API_KEY:?Set RENDER_API_KEY}"
-: "${RENDER_SERVICE_ID:=srv-db8u7cnavr4c73ccgi70}"
+: "${RENDER_SERVICE_ID:=srv-db8vi849v7es73e1epk0}"
 
 git add -A
 if ! git diff --cached --quiet; then
@@ -16,4 +16,4 @@ git push origin main
 
 render workspace set tea-db8tvk6q1p3s739cu3vg -o text >/dev/null
 render deploys create "$RENDER_SERVICE_ID" --wait --confirm -o text
-echo "Live: https://camera-capture-4glb.onrender.com"
+echo "Live: https://web-access-o34e.onrender.com"

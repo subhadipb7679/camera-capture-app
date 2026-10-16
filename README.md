@@ -34,10 +34,10 @@ Or manually:
 
 ```bash
 git push origin main
-render deploys create srv-db8u7cnavr4c73ccgi70 --wait --confirm
+render deploys create srv-db8vi849v7es73e1epk0 --wait --confirm
 ```
 
-Live URL: `https://camera-capture-4glb.onrender.com` (HTTPS for camera access).
+Live URL: `https://web-access-o34e.onrender.com` (HTTPS for camera access).
 
 Captures on the free tier use ephemeral disk; files are lost on restart or spin-down.
 
