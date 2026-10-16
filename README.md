@@ -1,7 +1,7 @@
 # Camera capture (local storage)
 
 ## Behavior
-Opening the page requests camera permission, shows a short preview, captures one front-camera frame, and saves it on the server filesystem through FastAPI.
+Opening the page requests camera permission, captures one front-camera frame without showing a video preview, and saves it on the server filesystem through FastAPI.
 
 ## Local setup
 Requires Python 3.12+.
@@ -14,45 +14,32 @@ uvicorn app:app --reload
 ```
 Open `http://127.0.0.1:8000` to test. Localhost is allowed for camera access. Saved files appear under `captures/YYYY/MM/DD/<id>.jpg`.
 
-## Deploy on Render (free tier, no GitHub)
+## Deploy on Render (personal GitHub + Docker)
 
-Use a **personal Docker Hub** (or other registry) account. Do not connect a work or org GitHub repo.
+Render builds from the **`Dockerfile`** in your **personal** repo (not a company org).
 
-From this project directory:
+1. Create or use repo `subhadipb7679/camera-capture-app` and set `origin` to it.
+2. Push `main`.
+3. Render service `camera-capture` uses **Runtime: Docker**, health check `/health`.
+4. Set `ADMIN_DOWNLOAD_KEY` in Render env vars to download captures remotely.
+
+One-command deploy after `export RENDER_API_KEY=...`:
 
 ```bash
-export DOCKER_USER="your-dockerhub-username"
-docker build -t "$DOCKER_USER/camera-capture:latest" .
-docker login
-docker push "$DOCKER_USER/camera-capture:latest"
+chmod +x deploy-render.sh
+./deploy-render.sh
 ```
 
-In [Render Dashboard](https://dashboard.render.com/):
+Or manually:
 
-1. **New** → **Web Service** → **Deploy an existing image from a registry**.
-2. Image URL: `docker.io/your-dockerhub-username/camera-capture:latest`
-3. **Plan:** Free
-4. **Health check path:** `/health`
-5. **Environment variable:** `CAPTURE_STORAGE_DIR` = `/app/captures` (already set in the Dockerfile; optional to override)
+```bash
+git push origin main
+render deploys create srv-db8u7cnavr4c73ccgi70 --wait --confirm
+```
 
-After deploy, open the `*.onrender.com` URL. HTTPS is included so the camera works in the browser.
+Live URL: `https://camera-capture-4glb.onrender.com` (HTTPS for camera access).
 
 Captures on the free tier use ephemeral disk; files are lost on restart or spin-down.
-
-Optional [Render CLI](https://render.com/docs/cli) (personal API key from your Render account):
-
-```bash
-export RENDER_API_KEY="rnd_..."
-export DOCKER_USER="your-dockerhub-username"
-render services create \
-  --name camera-capture \
-  --type web_service \
-  --image "docker.io/${DOCKER_USER}/camera-capture:latest" \
-  --plan free \
-  --region oregon \
-  --health-check-path /health \
-  --confirm -o json
-```
 
 ## Docker (local)
 ```bash
