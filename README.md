@@ -14,37 +14,47 @@ uvicorn app:app --reload
 ```
 Open `http://127.0.0.1:8000` to test. Localhost is allowed for camera access. Saved files appear under `captures/YYYY/MM/DD/<id>.jpg`.
 
-## Deploy on Render (free tier)
+## Deploy on Render (free tier, no GitHub)
 
-1. Push this repo to GitHub (already at `https://github.com/subhadipb7679/authorized-s3-security-checkin`).
-2. In [Render Dashboard](https://dashboard.render.com/), choose **New** → **Blueprint**.
-3. Connect GitHub and select **authorized-s3-security-checkin**.
-4. Apply the `render.yaml` in the repo (free web service `camera-capture`).
-5. After deploy, open `https://camera-capture.onrender.com` (exact subdomain may differ).
+Use a **personal Docker Hub** (or other registry) account. Do not connect a work or org GitHub repo.
 
-Captures on Render free tier use ephemeral disk (`/tmp/captures`); files are lost on restart or spin-down. HTTPS is included so the camera works in the browser.
+From this project directory:
 
-Optional CLI (after [creating an API key](https://dashboard.render.com/u/settings#api-keys)):
+```bash
+export DOCKER_USER="your-dockerhub-username"
+docker build -t "$DOCKER_USER/camera-capture:latest" .
+docker login
+docker push "$DOCKER_USER/camera-capture:latest"
+```
+
+In [Render Dashboard](https://dashboard.render.com/):
+
+1. **New** → **Web Service** → **Deploy an existing image from a registry**.
+2. Image URL: `docker.io/your-dockerhub-username/camera-capture:latest`
+3. **Plan:** Free
+4. **Health check path:** `/health`
+5. **Environment variable:** `CAPTURE_STORAGE_DIR` = `/app/captures` (already set in the Dockerfile; optional to override)
+
+After deploy, open the `*.onrender.com` URL. HTTPS is included so the camera works in the browser.
+
+Captures on the free tier use ephemeral disk; files are lost on restart or spin-down.
+
+Optional [Render CLI](https://render.com/docs/cli) (personal API key from your Render account):
 
 ```bash
 export RENDER_API_KEY="rnd_..."
+export DOCKER_USER="your-dockerhub-username"
 render services create \
   --name camera-capture \
   --type web_service \
-  --repo https://github.com/subhadipb7679/authorized-s3-security-checkin \
-  --branch main \
-  --runtime python \
+  --image "docker.io/${DOCKER_USER}/camera-capture:latest" \
   --plan free \
   --region oregon \
-  --build-command "pip install -r requirements.txt" \
-  --start-command "uvicorn app:app --host 0.0.0.0 --port \$PORT --proxy-headers" \
   --health-check-path /health \
-  --env-var CAPTURE_STORAGE_DIR=/tmp/captures \
-  --env-var PYTHON_VERSION=3.12.11 \
   --confirm -o json
 ```
 
-## Docker
+## Docker (local)
 ```bash
 docker build -t authorized-s3-security-checkin .
 docker run --rm -p 8000:8000 \
