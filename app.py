@@ -1,3 +1,4 @@
+import html
 import io
 import os
 import time
@@ -6,7 +7,7 @@ from collections import defaultdict, deque
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
@@ -28,9 +29,41 @@ def home():
 def health():
     return {"status": "ok"}
 
-@app.get("/gallery")
-def gallery():
-    return FileResponse(os.path.join(APP_DIR, "static", "gallery.html"))
+def captures_html() -> str:
+    items = sorted(iter_capture_files(), key=lambda x: x["modified_utc"], reverse=True)
+    cards = []
+    for item in items:
+        cid = html.escape(item["capture_id"])
+        when = html.escape(item["modified_utc"].replace("T", " ").replace("+00:00", " UTC"))
+        cards.append(
+            f'<article class="card"><img src="/api/captures/{cid}/image" alt="{cid}" loading="lazy">'
+            f'<div class="meta"><div>{when}</div>'
+            f'<a href="/api/captures/{cid}/download">Download</a></div></article>'
+        )
+    body = "\n".join(cards) if cards else '<p class="empty">No images yet. Play the game and tap the button once.</p>'
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gallery</title>
+<style>
+:root{{color-scheme:dark;font-family:system-ui,sans-serif}}
+body{{margin:0;padding:20px;background:#0f1419;color:#eef2f8}}
+h1{{margin:0 0 8px;font-size:1.35rem}}
+.sub{{color:#9aa8bc;margin:0 0 16px}}
+.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}}
+.card{{background:#1a222d;border:1px solid #2e3a4d;border-radius:12px;overflow:hidden}}
+.card img{{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#080a0d}}
+.meta{{padding:8px 10px;font-size:.75rem;color:#9aa8bc}}
+.meta a{{color:#9eb4ff}}
+.empty{{color:#9aa8bc}}
+</style></head><body>
+<h1>Gallery</h1>
+<p class="sub">{len(items)} image(s) on this server · <a href="/">Back to game</a></p>
+<div class="grid">{body}</div></body></html>"""
+
+@app.get("/captures", response_class=HTMLResponse)
+@app.get("/gallery", response_class=HTMLResponse)
+def gallery_page():
+    return captures_html()
 
 def iter_capture_files():
     if not os.path.isdir(CAPTURE_DIR):
@@ -110,7 +143,12 @@ async def upload_capture(
     return {"status": "uploaded", "capture_id": capture_id, "path": rel_key}
 
 @app.get("/api/captures")
-def list_captures():
+def list_captures(request: Request, format: str | None = None):
+    accept = request.headers.get("accept", "")
+    wants_json = format == "json" or accept.startswith("application/json")
+    wants_html = "text/html" in accept and not wants_json
+    if wants_html:
+        return RedirectResponse("/captures", status_code=302)
     items = sorted(iter_capture_files(), key=lambda x: x["modified_utc"], reverse=True)
     return {"captures": items}
 
